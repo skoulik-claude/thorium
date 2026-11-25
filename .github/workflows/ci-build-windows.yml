@@ -30,7 +30,7 @@ jobs:
     uses: ./.github/workflows/ci-stage.yml
     with:
       stage: 1
-      jobs: ${{ inputs.jobs }}
+      jobs: ${{ fromJSON(inputs.jobs) }}
       resume-run: ${{ inputs.resume-run }}
   stage-2:
     needs: stage-1
@@ -38,77 +38,77 @@ jobs:
     uses: ./.github/workflows/ci-stage.yml
     with:
       stage: 2
-      jobs: ${{ inputs.jobs }}
+      jobs: ${{ fromJSON(inputs.jobs) }}
   stage-3:
     needs: stage-2
     if: needs.stage-2.outputs.finished == 'false'
     uses: ./.github/workflows/ci-stage.yml
     with:
       stage: 3
-      jobs: ${{ inputs.jobs }}
+      jobs: ${{ fromJSON(inputs.jobs) }}
   stage-4:
     needs: stage-3
     if: needs.stage-3.outputs.finished == 'false'
     uses: ./.github/workflows/ci-stage.yml
     with:
       stage: 4
-      jobs: ${{ inputs.jobs }}
+      jobs: ${{ fromJSON(inputs.jobs) }}
   stage-5:
     needs: stage-4
     if: needs.stage-4.outputs.finished == 'false'
     uses: ./.github/workflows/ci-stage.yml
     with:
       stage: 5
-      jobs: ${{ inputs.jobs }}
+      jobs: ${{ fromJSON(inputs.jobs) }}
   stage-6:
     needs: stage-5
     if: needs.stage-5.outputs.finished == 'false'
     uses: ./.github/workflows/ci-stage.yml
     with:
       stage: 6
-      jobs: ${{ inputs.jobs }}
+      jobs: ${{ fromJSON(inputs.jobs) }}
   stage-7:
     needs: stage-6
     if: needs.stage-6.outputs.finished == 'false'
     uses: ./.github/workflows/ci-stage.yml
     with:
       stage: 7
-      jobs: ${{ inputs.jobs }}
+      jobs: ${{ fromJSON(inputs.jobs) }}
   stage-8:
     needs: stage-7
     if: needs.stage-7.outputs.finished == 'false'
     uses: ./.github/workflows/ci-stage.yml
     with:
       stage: 8
-      jobs: ${{ inputs.jobs }}
+      jobs: ${{ fromJSON(inputs.jobs) }}
   stage-9:
     needs: stage-8
     if: needs.stage-8.outputs.finished == 'false'
     uses: ./.github/workflows/ci-stage.yml
     with:
       stage: 9
-      jobs: ${{ inputs.jobs }}
+      jobs: ${{ fromJSON(inputs.jobs) }}
   stage-10:
     needs: stage-9
     if: needs.stage-9.outputs.finished == 'false'
     uses: ./.github/workflows/ci-stage.yml
     with:
       stage: 10
-      jobs: ${{ inputs.jobs }}
+      jobs: ${{ fromJSON(inputs.jobs) }}
   stage-11:
     needs: stage-10
     if: needs.stage-10.outputs.finished == 'false'
     uses: ./.github/workflows/ci-stage.yml
     with:
       stage: 11
-      jobs: ${{ inputs.jobs }}
+      jobs: ${{ fromJSON(inputs.jobs) }}
   stage-12:
     needs: stage-11
     if: needs.stage-11.outputs.finished == 'false'
     uses: ./.github/workflows/ci-stage.yml
     with:
       stage: 12
-      jobs: ${{ inputs.jobs }}
+      jobs: ${{ fromJSON(inputs.jobs) }}
 
   release:
     needs: [stage-1, stage-2, stage-3, stage-4, stage-5, stage-6,
