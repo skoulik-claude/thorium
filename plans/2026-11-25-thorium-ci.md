@@ -50,7 +50,8 @@ time. We copy that pattern.
    Ctrl-Break — Ninja stops its jobs and deletes their partial outputs — and the tree
    (`src`, depot_tools, without `.git`) goes into a 7z archive, which keeps the 100 ns file
    times Ninja's checks need, uploaded for the next stage (`retention-days: 2`). Every stage
-   uses the same absolute path, `C:\b`. Twelve stages at most; a run can resume another
+   uses the same absolute path, `D:\b` — the runner's 150 GB temporary disk, since `C:` has
+   only about 30 GB free (measured 2026-11-25). Twelve stages at most; a run can resume another
    run's saved tree (`resume-run`), for fixing a failure without starting over.
 3. **Package**: Chromium's **mini installer** (agreed; it updates an existing per-user
    Thorium in place) and Thorium's own portable zip (`infra/portable/portable.py`), SHA-256

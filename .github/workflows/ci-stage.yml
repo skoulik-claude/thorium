@@ -25,7 +25,9 @@ permissions:
   actions: read
 
 env:
-  THORIUM_CI_WORK: C:\b
+  # D: is the runner's 150 GB temporary disk, nearly empty; C: has only about
+  # 30 GB free, which the Chromium checkout alone overflows.
+  THORIUM_CI_WORK: D:\b
   # Minutes from the job's start: Ninja stops here, leaving time to archive
   # and upload the tree before GitHub's 6-hour limit (timeout-minutes below).
   BUILD_UNTIL_MINUTES: 280
@@ -64,7 +66,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: build-state
-          path: C:\b-state
+          path: D:\b-state
           run-id: ${{ inputs.resume-run || github.run_id }}
           github-token: ${{ github.token }}
 
@@ -72,9 +74,9 @@ jobs:
         if: inputs.stage > 1 || inputs.resume-run != ''
         shell: pwsh
         run: |
-          & 7z x C:\b-state\state.7z "-o$env:THORIUM_CI_WORK" -y -bso0 -bsp0
+          & 7z x D:\b-state\state.7z "-o$env:THORIUM_CI_WORK" -y -bso0 -bsp0
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          Remove-Item -Recurse -Force C:\b-state
+          Remove-Item -Recurse -Force D:\b-state
 
       - name: Build
         id: build
@@ -93,18 +95,18 @@ jobs:
         shell: pwsh
         run: |
           # 7z keeps file times to 100 ns, which Ninja's up-to-date checks need.
-          & 7z a -t7z -mx=1 -mmt=on "-xr!.git" C:\b-state\state.7z `
+          & 7z a -t7z -mx=1 -mmt=on "-xr!.git" D:\b-state\state.7z `
               "$env:THORIUM_CI_WORK\src" "$env:THORIUM_CI_WORK\depot_tools" `
               "$env:THORIUM_CI_WORK\.gclient" -bso0 -bsp0
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          Get-Item C:\b-state\state.7z | ForEach-Object { "state.7z: {0:N1} GiB" -f ($_.Length / 1GB) }
+          Get-Item D:\b-state\state.7z | ForEach-Object { "state.7z: {0:N1} GiB" -f ($_.Length / 1GB) }
 
       - name: Upload the saved tree
         if: steps.build.outputs.finished == 'false'
         uses: actions/upload-artifact@v4
         with:
           name: build-state
-          path: C:\b-state\state.7z
+          path: D:\b-state\state.7z
           compression-level: 0
           retention-days: 2
           overwrite: true
@@ -118,6 +120,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: thorium-dist
-          path: C:\b\dist
+          path: D:\b\dist
           compression-level: 0
           retention-days: 7

@@ -22,7 +22,7 @@ import subprocess
 import sys
 import time
 
-WORK = Path(os.environ.get("THORIUM_CI_WORK", r"C:\b"))
+WORK = Path(os.environ.get("THORIUM_CI_WORK", r"D:\b"))
 SRC = WORK / "src"
 OUT = SRC / "out" / "thorium"
 DEPOT_TOOLS = WORK / "depot_tools"
