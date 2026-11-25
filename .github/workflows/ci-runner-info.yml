@@ -29,3 +29,24 @@ jobs:
           "Memory: {0:N1} GiB" -f ($cs.TotalPhysicalMemory / 1GB)
           Get-CimInstance Win32_PageFileUsage | Format-Table Name, AllocatedBaseSize -AutoSize
           "Workspace: $env:GITHUB_WORKSPACE  Temp: $env:RUNNER_TEMP"
+
+      # The stages carry the Chromium tree in a 7z archive, and the tree holds
+      # symbolic links, some dangling (node_modules\.bin, third_party\nearby).
+      # Check they survive the same 7z switches the stages use.
+      - name: 7z keeps symbolic links
+        shell: pwsh
+        run: |
+          & 7z i | Select-Object -First 3
+          $t = 'D:\linktest'
+          New-Item -ItemType Directory -Force "$t\src\pkg\bin", "$t\src\node_modules\.bin" | Out-Null
+          Set-Content "$t\src\pkg\bin\tool.js" 'console.log(1)'
+          cmd /c mklink "$t\src\node_modules\.bin\tool" "..\..\pkg\bin\tool.js"
+          cmd /c mklink "$t\src\node_modules\.bin\dangling" "..\..\missing\target"
+          cmd /c mklink /D "$t\src\incdir" "pkg\bin"
+          & 7z a -t7z -mx=1 -snl "$t\state.7z" "$t\src" -bso0 -bsp0
+          "7z a exit code: $LASTEXITCODE"
+          & 7z x "$t\state.7z" "-o$t\out" -snld -y -bso0 -bsp0
+          "7z x exit code: $LASTEXITCODE"
+          Get-ChildItem "$t\out\src\node_modules\.bin", "$t\out\src" -Force |
+            Format-Table Name, LinkType, Target -AutoSize
+          "read through restored link: " + (Get-Content "$t\out\src\node_modules\.bin\tool")
