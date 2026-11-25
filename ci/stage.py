@@ -106,7 +106,9 @@ def prepare(_: argparse.Namespace) -> None:
     WORK.mkdir(parents=True, exist_ok=True)
     run(["git", "clone", "--depth=1", DEPOT_TOOLS_URL, DEPOT_TOOLS])
     build_environment(update_depot_tools=True)
-    run(gclient() + ["--version"], cwd=WORK)  # bootstraps python3 and friends
+    # Bootstraps depot_tools' own git, CIPD tools and python3, which the build
+    # calls; running gclient for this would only print its usage text.
+    run(["cmd", "/c", DEPOT_TOOLS / "update_depot_tools.bat"], cwd=WORK)
     build_environment()
     (WORK / ".gclient").write_text(
         "solutions = [{\n"
