@@ -74,9 +74,12 @@ jobs:
         if: inputs.stage > 1 || inputs.resume-run != ''
         shell: pwsh
         run: |
-          & 7z x D:\b-state\state.7z "-o$env:THORIUM_CI_WORK" -y -bso0 -bsp0
-          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          # -snld: restore the symbolic links -snl stored, relative ones included.
+          & 7z x D:\b-state\state.7z "-o$env:THORIUM_CI_WORK" -snld -y -bso0 -bsp0
+          if ($LASTEXITCODE -gt 1) { exit $LASTEXITCODE }
+          if ($LASTEXITCODE -eq 1) { "::warning::7z reported warnings restoring the tree" }
           Remove-Item -Recurse -Force D:\b-state
+          exit 0  # GitHub's pwsh wrapper would otherwise exit with 7z's code
 
       - name: Build
         id: build
@@ -95,11 +98,17 @@ jobs:
         shell: pwsh
         run: |
           # 7z keeps file times to 100 ns, which Ninja's up-to-date checks need.
-          & 7z a -t7z -mx=1 -mmt=on "-xr!.git" D:\b-state\state.7z `
+          # -snl stores symbolic links as links: the checkout has some, a few of
+          # them dangling, and following them made 7z fail the whole save.
+          # Exit code 1 is 7z's "warnings": an unreadable file is reported, not
+          # worth losing the stage's work over.
+          & 7z a -t7z -mx=1 -mmt=on -snl "-xr!.git" D:\b-state\state.7z `
               "$env:THORIUM_CI_WORK\src" "$env:THORIUM_CI_WORK\depot_tools" `
               "$env:THORIUM_CI_WORK\.gclient" -bso0 -bsp0
-          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          if ($LASTEXITCODE -gt 1) { exit $LASTEXITCODE }
+          if ($LASTEXITCODE -eq 1) { "::warning::7z reported warnings saving the tree" }
           Get-Item D:\b-state\state.7z | ForEach-Object { "state.7z: {0:N1} GiB" -f ($_.Length / 1GB) }
+          exit 0  # GitHub's pwsh wrapper would otherwise exit with 7z's code
 
       - name: Upload the saved tree
         if: steps.build.outputs.finished == 'false'
