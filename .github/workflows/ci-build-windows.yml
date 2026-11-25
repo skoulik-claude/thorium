@@ -1,0 +1,160 @@
+# Builds Thorium for Windows x64 (AVX2) on GitHub-hosted runners and publishes
+# it as a pre-release. A Chromium official build takes far longer than one
+# job's 6 hours on 4 cores, so the build runs as chained stages
+# (ci-stage.yml), each resuming the tree the previous one saved - the pattern
+# of ungoogled-chromium-windows. Plan: plans/2026-11-25-thorium-ci.md.
+name: Build Thorium for Windows (CI)
+
+on:
+  workflow_dispatch:
+    inputs:
+      jobs:
+        description: Parallel Ninja jobs (4 cores, 16 GB RAM per runner)
+        type: number
+        default: 4
+      resume-run:
+        description: Optional run ID to resume from its saved tree (kept 2 days)
+        type: string
+        default: ''
+
+concurrency:
+  group: ci-build-windows
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  stage-1:
+    uses: ./.github/workflows/ci-stage.yml
+    with:
+      stage: 1
+      jobs: ${{ inputs.jobs }}
+      resume-run: ${{ inputs.resume-run }}
+  stage-2:
+    needs: stage-1
+    if: needs.stage-1.outputs.finished == 'false'
+    uses: ./.github/workflows/ci-stage.yml
+    with:
+      stage: 2
+      jobs: ${{ inputs.jobs }}
+  stage-3:
+    needs: stage-2
+    if: needs.stage-2.outputs.finished == 'false'
+    uses: ./.github/workflows/ci-stage.yml
+    with:
+      stage: 3
+      jobs: ${{ inputs.jobs }}
+  stage-4:
+    needs: stage-3
+    if: needs.stage-3.outputs.finished == 'false'
+    uses: ./.github/workflows/ci-stage.yml
+    with:
+      stage: 4
+      jobs: ${{ inputs.jobs }}
+  stage-5:
+    needs: stage-4
+    if: needs.stage-4.outputs.finished == 'false'
+    uses: ./.github/workflows/ci-stage.yml
+    with:
+      stage: 5
+      jobs: ${{ inputs.jobs }}
+  stage-6:
+    needs: stage-5
+    if: needs.stage-5.outputs.finished == 'false'
+    uses: ./.github/workflows/ci-stage.yml
+    with:
+      stage: 6
+      jobs: ${{ inputs.jobs }}
+  stage-7:
+    needs: stage-6
+    if: needs.stage-6.outputs.finished == 'false'
+    uses: ./.github/workflows/ci-stage.yml
+    with:
+      stage: 7
+      jobs: ${{ inputs.jobs }}
+  stage-8:
+    needs: stage-7
+    if: needs.stage-7.outputs.finished == 'false'
+    uses: ./.github/workflows/ci-stage.yml
+    with:
+      stage: 8
+      jobs: ${{ inputs.jobs }}
+  stage-9:
+    needs: stage-8
+    if: needs.stage-8.outputs.finished == 'false'
+    uses: ./.github/workflows/ci-stage.yml
+    with:
+      stage: 9
+      jobs: ${{ inputs.jobs }}
+  stage-10:
+    needs: stage-9
+    if: needs.stage-9.outputs.finished == 'false'
+    uses: ./.github/workflows/ci-stage.yml
+    with:
+      stage: 10
+      jobs: ${{ inputs.jobs }}
+  stage-11:
+    needs: stage-10
+    if: needs.stage-10.outputs.finished == 'false'
+    uses: ./.github/workflows/ci-stage.yml
+    with:
+      stage: 11
+      jobs: ${{ inputs.jobs }}
+  stage-12:
+    needs: stage-11
+    if: needs.stage-11.outputs.finished == 'false'
+    uses: ./.github/workflows/ci-stage.yml
+    with:
+      stage: 12
+      jobs: ${{ inputs.jobs }}
+
+  release:
+    needs: [stage-1, stage-2, stage-3, stage-4, stage-5, stage-6,
+            stage-7, stage-8, stage-9, stage-10, stage-11, stage-12]
+    if: always() && !cancelled()
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - name: Check that a stage finished the build
+        if: ${{ !contains(needs.*.outputs.finished, 'true') }}
+        run: |
+          echo "No stage finished the build: one failed, or 12 stages were not enough."
+          echo "A run can be resumed from its saved tree with the resume-run input."
+          exit 1
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: thorium-dist
+          path: dist
+
+      - name: Publish the pre-release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          version=$(cat dist/VERSION)
+          tag="thorium-${version}-avx2-ci${GITHUB_RUN_NUMBER}"
+          cat > notes.md <<EOF
+          Thorium ${version} for Windows x64 (AVX2), built from source on GitHub Actions
+          by [run ${GITHUB_RUN_ID}](${RUN_URL}) from commit ${GITHUB_SHA} of the \`ci\` branch.
+
+          - Thorium's own patches, plus this repository's \`ci/patches/\`: the renderer's
+            start-up code integrity also honours \`--allow-third-party-modules\`. Start
+            Thorium with it if every tab stays blank (all renderers exiting \`0xC0000428\`).
+          - GN: Thorium's \`other/AVX2/win_AVX2_args.gn\`, with \`bundle_widevine_cdm = false\`
+            (Google's CDM may not be redistributed) and \`use_siso = false\`.
+          - The portable zip's \`THORIUM.BAT\` turns off profile encryption, as upstream's does;
+            run \`BIN\\thorium.exe\` directly to keep it.
+
+          \`\`\`
+          $(cat dist/SHA256SUMS.txt)
+          \`\`\`
+          EOF
+          gh release create "$tag" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --prerelease --title "Thorium ${version} AVX2 (CI ${GITHUB_RUN_NUMBER})" \
+            --notes-file notes.md \
+            dist/*_mini_installer.exe dist/*_portable.zip dist/SHA256SUMS.txt
