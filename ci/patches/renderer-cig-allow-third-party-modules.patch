@@ -1,0 +1,21 @@
+diff --git a/chrome/browser/chrome_content_browser_client.cc b/chrome/browser/chrome_content_browser_client.cc
+--- a/chrome/browser/chrome_content_browser_client.cc
++++ b/chrome/browser/chrome_content_browser_client.cc
+@@ -5540,10 +5540,16 @@ bool ChromeContentBrowserClient::PreSpawnChild(
+
+   switch (sandbox_type) {
+     case sandbox::mojom::Sandbox::kRenderer:
+       // GDI text rendering exists so that GDI hooks such as MacType can draw
+       // web content; their DLLs are not Microsoft-signed.
++      // --allow-third-party-modules already lifts the post-startup signature
++      // mitigation (sandbox_win.cc); let it lift the startup one too, and
++      // nothing else, for machines where AllowExtraDll() below fails to let
++      // the unsigned chrome_elf.dll through and every renderer dies at start.
+       enforce_code_integrity =
+-          !(flags & ChildSpawnFlags::kChildSpawnFlagGdiFonts);
++          !(flags & ChildSpawnFlags::kChildSpawnFlagGdiFonts) &&
++          !base::CommandLine::ForCurrentProcess()->HasSwitch(
++              sandbox::policy::switches::kAllowThirdPartyModules);
+       break;
+     case sandbox::mojom::Sandbox::kNetwork:
+       enforce_code_integrity = base::FeatureList::IsEnabled(
