@@ -1,0 +1,31 @@
+# Prints what a CI runner offers - drives and free space, cores, memory - so
+# the build can be sized to it. Cheap: about a minute.
+name: ci-runner-info
+
+on:
+  workflow_dispatch:
+    inputs:
+      runner:
+        description: Runner label
+        type: string
+        default: windows-2025-vs2026
+
+permissions:
+  contents: read
+
+jobs:
+  info:
+    runs-on: ${{ inputs.runner }}
+    steps:
+      - name: Drives, cores, memory
+        shell: pwsh
+        run: |
+          Get-Volume | Where-Object DriveLetter | Sort-Object DriveLetter |
+            Format-Table DriveLetter, FileSystemLabel, FileSystem,
+              @{n='SizeGiB'; e={[math]::Round($_.Size / 1GB)}},
+              @{n='FreeGiB'; e={[math]::Round($_.SizeRemaining / 1GB)}} -AutoSize
+          $cs = Get-CimInstance Win32_ComputerSystem
+          "Logical processors: $($cs.NumberOfLogicalProcessors)"
+          "Memory: {0:N1} GiB" -f ($cs.TotalPhysicalMemory / 1GB)
+          Get-CimInstance Win32_PageFileUsage | Format-Table Name, AllocatedBaseSize -AutoSize
+          "Workspace: $env:GITHUB_WORKSPACE  Temp: $env:RUNNER_TEMP"
