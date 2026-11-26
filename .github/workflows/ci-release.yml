@@ -1,0 +1,67 @@
+# Publishes the files a finished ci-build-windows.yml run produced (its
+# thorium-dist artifact) as a GitHub pre-release. Called by that workflow at
+# the end of a build, and runnable by hand for an earlier run - a re-run of a
+# failed release job would replay the workflow as it was at the run's commit.
+name: ci-release
+
+on:
+  workflow_dispatch:
+    inputs:
+      run-id:
+        description: ID of the ci-build-windows.yml run whose files to publish
+        type: string
+        required: true
+  workflow_call:
+    inputs:
+      run-id:
+        type: string
+        required: true
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: thorium-dist
+          path: dist
+          run-id: ${{ inputs.run-id }}
+          github-token: ${{ github.token }}
+
+      - name: Publish the pre-release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BUILD_RUN: ${{ inputs.run-id }}
+        run: |
+          # The build writes these files on Windows: drop the CRs, which made
+          # the first release's tag invalid.
+          version=$(tr -d '\r\n' < dist/VERSION)
+          sums=$(tr -d '\r' < dist/SHA256SUMS.txt)
+          read -r build_sha build_number < <(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$BUILD_RUN" \
+            --jq '"\(.head_sha) \(.run_number)"')
+          run_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$BUILD_RUN"
+          tag="thorium-${version}-avx2-ci${build_number}"
+          cat > notes.md <<EOF
+          Thorium ${version} for Windows x64 (AVX2), built from source on GitHub Actions
+          by [run ${BUILD_RUN}](${run_url}) from commit ${build_sha} of the \`ci\` branch.
+
+          - Thorium's own patches, plus this repository's \`ci/patches/\`: the renderer's
+            start-up code integrity also honours \`--allow-third-party-modules\`. Start
+            Thorium with it if every tab stays blank (all renderers exiting \`0xC0000428\`).
+          - GN: Thorium's \`other/AVX2/win_AVX2_args.gn\`, with \`bundle_widevine_cdm = false\`
+            (Google's CDM may not be redistributed) and \`use_siso = false\`.
+          - The portable zip's \`THORIUM.BAT\` turns off profile encryption, as upstream's does;
+            run \`BIN\\thorium.exe\` directly to keep it.
+
+          \`\`\`
+          ${sums}
+          \`\`\`
+          EOF
+          gh release create "$tag" --repo "$GITHUB_REPOSITORY" --target "$build_sha" \
+            --prerelease --title "Thorium ${version} AVX2 (CI ${build_number})" \
+            --notes-file notes.md \
+            dist/*_mini_installer.exe dist/*_portable.zip dist/SHA256SUMS.txt

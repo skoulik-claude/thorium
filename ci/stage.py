@@ -204,9 +204,12 @@ def package(_: argparse.Namespace) -> None:
          "--seven-zip", SEVEN_ZIP, "--expected-version", version,
          "--output", portable])
     sums = [f"{sha256(path)} *{path.name}" for path in (installer, portable)]
+    # LF endings: these files are read on Linux by the release job, where a
+    # Windows CR ended up in the release tag.
     (DIST / "SHA256SUMS.txt").write_text("\n".join(sums) + "\n",
-                                         encoding="utf-8")
-    (DIST / "VERSION").write_text(version + "\n", encoding="utf-8")
+                                         encoding="utf-8", newline="\n")
+    (DIST / "VERSION").write_text(version + "\n", encoding="utf-8",
+                                  newline="\n")
     log("\n".join(sums))
 
 
