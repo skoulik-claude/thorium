@@ -1,0 +1,39 @@
+# Keep a run's saved tree (build-state) for longer: GitHub cannot extend an
+# existing artifact's retention, so this copies it into a new artifact of its
+# own run. That run's ID then works as ci-build-windows.yml's resume-run.
+name: ci-keep-state
+
+on:
+  workflow_dispatch:
+    inputs:
+      run-id:
+        description: Run whose build-state to keep
+        required: true
+      retention-days:
+        description: Days to keep the copy
+        default: '21'
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  keep:
+    # Its D: has the room for the tree (see ci-stage.yml).
+    runs-on: windows-2025-vs2026
+    timeout-minutes: 120
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: build-state
+          path: D:\b-state
+          run-id: ${{ inputs.run-id }}
+          github-token: ${{ github.token }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: build-state
+          path: D:\b-state\state.7z
+          compression-level: 0
+          retention-days: ${{ inputs.retention-days }}
+          if-no-files-found: error

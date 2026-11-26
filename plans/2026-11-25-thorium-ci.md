@@ -49,7 +49,11 @@ time. We copy that pattern.
 2. **Build** (every stage): Ninja until done or until 280 minutes into the job, then
    Ctrl-Break — Ninja stops its jobs and deletes their partial outputs — and the tree
    (`src`, depot_tools, without `.git`) goes into a 7z archive, which keeps the 100 ns file
-   times Ninja's checks need, uploaded for the next stage (`retention-days: 2`). Every stage
+   times Ninja's checks need, uploaded for the next stage. The last stage saves its finished
+   tree as well, and every saved tree is kept 21 days, so that a problem found in the first
+   weeks of use is fixed by resuming rather than by a full rebuild; `ci-keep-state.yml`
+   copies an older run's tree to keep it longer, since GitHub cannot extend an
+   artifact's retention. Every stage
    uses the same absolute path, `D:\b` — the runner's 150 GB temporary disk, since `C:` has
    only about 30 GB free (measured 2026-11-25). Twelve stages at most; a run can resume another
    run's saved tree (`resume-run`), for fixing a failure without starting over.

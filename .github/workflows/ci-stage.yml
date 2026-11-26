@@ -1,6 +1,6 @@
 # One stage of ci-build-windows.yml: restore the tree (or prepare it, in the
-# first stage), build until done or until the deadline, save the tree for the
-# next stage or the finished files for the release.
+# first stage), build until done or until the deadline, keep the finished files
+# for the release if done, and save the tree either way.
 name: ci-stage
 
 on:
@@ -93,8 +93,24 @@ jobs:
           }
           exit 0
 
-      - name: Save the tree for the next stage
-        if: steps.build.outputs.finished == 'false'
+      - name: Package
+        if: steps.build.outputs.finished == 'true'
+        run: python ci\stage.py package
+
+      - name: Upload the release files
+        if: steps.build.outputs.finished == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: thorium-dist
+          path: D:\b\dist
+          compression-level: 0
+          retention-days: 7
+
+      # The tree is saved after the last stage too, so a later run can resume
+      # from the finished build (resume-run) for a fix on the same version.
+      # There, a failed save must not cost the release that is already built.
+      - name: Save the tree
+        continue-on-error: ${{ steps.build.outputs.finished == 'true' }}
         shell: pwsh
         run: |
           # 7z keeps file times to 100 ns, which Ninja's up-to-date checks need.
@@ -111,24 +127,13 @@ jobs:
           exit 0  # GitHub's pwsh wrapper would otherwise exit with 7z's code
 
       - name: Upload the saved tree
-        if: steps.build.outputs.finished == 'false'
+        continue-on-error: ${{ steps.build.outputs.finished == 'true' }}
         uses: actions/upload-artifact@v4
         with:
           name: build-state
           path: D:\b-state\state.7z
           compression-level: 0
-          retention-days: 2
+          # Long enough to fix a problem found in the first weeks of use without
+          # a full rebuild; artifacts of a public repository cost nothing.
+          retention-days: 21
           overwrite: true
-
-      - name: Package
-        if: steps.build.outputs.finished == 'true'
-        run: python ci\stage.py package
-
-      - name: Upload the release files
-        if: steps.build.outputs.finished == 'true'
-        uses: actions/upload-artifact@v4
-        with:
-          name: thorium-dist
-          path: D:\b\dist
-          compression-level: 0
-          retention-days: 7
