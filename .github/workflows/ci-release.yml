@@ -36,9 +36,6 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           BUILD_RUN: ${{ inputs.run-id }}
-          # Diagnosing a 403 "Resource not accessible by integration" on
-          # POST /releases: the response headers name the permission wanted.
-          GH_DEBUG: api
         run: |
           # The build writes these files on Windows: drop the CRs, which made
           # the first release's tag invalid.

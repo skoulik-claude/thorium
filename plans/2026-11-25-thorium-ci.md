@@ -56,7 +56,12 @@ time. We copy that pattern.
 3. **Package**: Chromium's **mini installer** (agreed; it updates an existing per-user
    Thorium in place) and Thorium's own portable zip (`infra/portable/portable.py`), SHA-256
    of each, published as a **GitHub pre-release** tagged with the Thorium version and run
-   number; the release notes link the run and commit.
+   number; the release notes link the run and commit. Publishing lives in `ci-release.yml`,
+   which takes a build run's ID. **The tag is pushed by hand first**
+   (`thorium-<version>-avx2-ci<run number>` on the build's commit): GitHub refuses the
+   workflow token a tag on a commit holding workflow files (it wants `workflows=write`,
+   which `GITHUB_TOKEN` never has), so the build's own release job fails until the tag
+   exists, and `ci-release.yml` is then run for that build.
 
 Re-running for a Thorium update means fast-forwarding `main`, rebasing `ci` and starting the
 workflow.
