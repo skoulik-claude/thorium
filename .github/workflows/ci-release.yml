@@ -64,7 +64,14 @@ jobs:
           ${sums}
           \`\`\`
           EOF
-          gh release create "$tag" --repo "$GITHUB_REPOSITORY" --target "$build_sha" \
+          # The workflow token may not create this tag: the commit holds workflow
+          # files, so GitHub wants workflows=write, which GITHUB_TOKEN never has.
+          # The tag is pushed by hand first; then only the release is created.
+          gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$tag" --silent || {
+            echo "::error::Push tag $tag on $build_sha first: the workflow token cannot create it."
+            exit 1
+          }
+          gh release create "$tag" --repo "$GITHUB_REPOSITORY" --verify-tag \
             --prerelease --title "Thorium ${version} AVX2 (CI ${build_number})" \
             --notes-file notes.md \
             dist/*_mini_installer.exe dist/*_portable.zip dist/SHA256SUMS.txt
