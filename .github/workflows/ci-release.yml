@@ -1,0 +1,82 @@
+# Publishes the files a finished ci-build-windows.yml run produced (its
+# thorium-dist artifact) as a GitHub pre-release. Called by that workflow at
+# the end of a build, and runnable by hand for an earlier run - a re-run of a
+# failed release job would replay the workflow as it was at the run's commit.
+name: ci-release
+
+on:
+  workflow_dispatch:
+    inputs:
+      run-id:
+        description: ID of the ci-build-windows.yml run whose files to publish
+        type: string
+        required: true
+  workflow_call:
+    inputs:
+      run-id:
+        type: string
+        required: true
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: thorium-dist
+          path: dist
+          run-id: ${{ inputs.run-id }}
+          github-token: ${{ github.token }}
+
+      - name: Publish the pre-release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BUILD_RUN: ${{ inputs.run-id }}
+        run: |
+          # The build writes these files on Windows: drop the CRs, which made
+          # the first release's tag invalid.
+          version=$(tr -d '\r\n' < dist/VERSION)
+          sums=$(tr -d '\r' < dist/SHA256SUMS.txt)
+          read -r build_sha build_number build_branch < <(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$BUILD_RUN" \
+            --jq '"\(.head_sha) \(.run_number) \(.head_branch)"')
+          # main mirrors upstream Alex313031/thorium: the merge base is the
+          # upstream commit this build adds the CI scripts to.
+          upstream=$(gh api "repos/$GITHUB_REPOSITORY/compare/main...$build_sha" \
+            --jq '.merge_base_commit.sha')
+          run_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$BUILD_RUN"
+          compare_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/compare/$upstream...$build_sha"
+          tag="thorium-${version}-avx2-ci${build_number}-unmodified"
+          cat > notes.md <<EOF
+          Thorium ${version} for Windows x64 (AVX2), built from source on GitHub Actions
+          by [run ${BUILD_RUN}](${run_url}) from commit ${build_sha} of the \`${build_branch}\` branch.
+
+          - Source: upstream Alex313031/thorium at ${upstream}, unmodified. The branch adds only
+            the CI scripts (\`.github/workflows/ci-*.yml\`, \`ci/\`): [the whole difference](${compare_url}).
+          - Thorium's own \`setup.py --avx2\` and patches; no patches of ours.
+          - GN: Thorium's \`other/AVX2/win_AVX2_args.gn\` as it is, plus \`use_siso = false\`,
+            which only chooses the build driver: Ninja runs the build instead of Siso.
+          - Thorium bundles Google's Widevine CDM, whose licence forbids redistribution, so this
+            release has only the portable zip, with its \`WidevineCdm\` directory left out. The
+            mini installer, which carries the CDM, is not published.
+          - The portable zip's \`THORIUM.BAT\` turns off profile encryption, as upstream's does;
+            run \`BIN\\thorium.exe\` directly to keep it.
+
+          \`\`\`
+          ${sums}
+          \`\`\`
+          EOF
+          # The workflow token may not create this tag: the commit holds workflow
+          # files, so GitHub wants workflows=write, which GITHUB_TOKEN never has.
+          # The tag is pushed by hand first; then only the release is created.
+          gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$tag" --silent || {
+            echo "::error::Push tag $tag on $build_sha first: the workflow token cannot create it."
+            exit 1
+          }
+          gh release create "$tag" --repo "$GITHUB_REPOSITORY" --verify-tag \
+            --prerelease --title "Thorium ${version} AVX2 (CI ${build_number}, unmodified)" \
+            --notes-file notes.md \
+            dist/*_portable.zip dist/SHA256SUMS.txt
